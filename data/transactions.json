@@ -1,8 +1,50 @@
-{
-  "title": "AI Powered Finance Tracker",
-  "description": "Portfolio-ready finance management app with income tracking, expense analytics, and AI-generated budget insights.",
-  "main": "server.js",
-  "scripts": {
-    "start": "node server.js"
+[
+  {
+    "id": "demo-1",
+    "type": "income",
+    "category": "Salary",
+    "amount": 5200,
+    "date": "2026-10-01",
+    "description": "Monthly salary"
+  },
+  {
+    "id": "demo-2",
+    "type": "expense",
+    "category": "Housing",
+    "amount": 1800,
+    "date": "2026-10-03",
+    "description": "Apartment rent"
+  },
+  {
+    "id": "demo-3",
+    "type": "expense",
+    "category": "Food",
+    "amount": 520,
+    "date": "2026-10-05",
+    "description": "Groceries and dining"
+  },
+  {
+    "id": "demo-4",
+    "type": "expense",
+    "category": "Transport",
+    "amount": 240,
+    "date": "2026-10-06",
+    "description": "Fuel and rides"
+  },
+  {
+    "id": "demo-5",
+    "type": "income",
+    "category": "Freelance",
+    "amount": 900,
+    "date": "2026-10-12",
+    "description": "Website design project"
+  },
+  {
+    "id": "demo-6",
+    "type": "expense",
+    "category": "Entertainment",
+    "amount": 340,
+    "date": "2026-10-14",
+    "description": "Streaming and events"
   }
-}
+]

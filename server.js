@@ -12,80 +12,88 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
+function defaultTransactions() {
+  return [
+    {
+      id: 'demo-1',
+      type: 'income',
+      category: 'Salary',
+      amount: 5200,
+      date: '2026-10-01',
+      description: 'Monthly salary'
+    },
+    {
+      id: 'demo-2',
+      type: 'expense',
+      category: 'Housing',
+      amount: 1800,
+      date: '2026-10-03',
+      description: 'Apartment rent'
+    },
+    {
+      id: 'demo-3',
+      type: 'expense',
+      category: 'Food',
+      amount: 520,
+      date: '2026-10-05',
+      description: 'Groceries and dining'
+    },
+    {
+      id: 'demo-4',
+      type: 'expense',
+      category: 'Transport',
+      amount: 240,
+      date: '2026-10-06',
+      description: 'Fuel and rides'
+    },
+    {
+      id: 'demo-5',
+      type: 'income',
+      category: 'Freelance',
+      amount: 900,
+      date: '2026-10-12',
+      description: 'Website design project'
+    },
+    {
+      id: 'demo-6',
+      type: 'expense',
+      category: 'Entertainment',
+      amount: 340,
+      date: '2026-10-14',
+      description: 'Streaming and events'
+    }
+  ];
+}
+
 function ensureDataFile() {
   if (!fs.existsSync(dataDir)) {
     fs.mkdirSync(dataDir, { recursive: true });
   }
 
   if (!fs.existsSync(dataFile)) {
-    fs.writeFileSync(
-      dataFile,
-      JSON.stringify(
-        [
-          {
-            id: 'demo-1',
-            type: 'income',
-            category: 'Salary',
-            amount: 5200,
-            date: '2026-10-01',
-            description: 'Monthly salary'
-          },
-          {
-            id: 'demo-2',
-            type: 'expense',
-            category: 'Housing',
-            amount: 1800,
-            date: '2026-10-03',
-            description: 'Apartment rent'
-          },
-          {
-            id: 'demo-3',
-            type: 'expense',
-            category: 'Food',
-            amount: 520,
-            date: '2026-10-05',
-            description: 'Groceries and dining'
-          },
-          {
-            id: 'demo-4',
-            type: 'expense',
-            category: 'Transport',
-            amount: 240,
-            date: '2026-10-06',
-            description: 'Fuel and rides'
-          },
-          {
-            id: 'demo-5',
-            type: 'income',
-            category: 'Freelance',
-            amount: 900,
-            date: '2026-10-12',
-            description: 'Website design project'
-          },
-          {
-            id: 'demo-6',
-            type: 'expense',
-            category: 'Entertainment',
-            amount: 340,
-            date: '2026-10-14',
-            description: 'Streaming and events'
-          }
-        ],
-        null,
-        2
-      )
-    );
+    fs.writeFileSync(dataFile, JSON.stringify(defaultTransactions(), null, 2));
+    return;
+  }
+
+  try {
+    const parsed = JSON.parse(fs.readFileSync(dataFile, 'utf8'));
+    if (!Array.isArray(parsed)) {
+      fs.writeFileSync(dataFile, JSON.stringify(defaultTransactions(), null, 2));
+    }
+  } catch (error) {
+    fs.writeFileSync(dataFile, JSON.stringify(defaultTransactions(), null, 2));
   }
 }
 
 function readTransactions() {
   ensureDataFile();
   const raw = fs.readFileSync(dataFile, 'utf8');
-  return JSON.parse(raw);
+  const parsed = JSON.parse(raw);
+  return Array.isArray(parsed) ? parsed : [];
 }
 
 function writeTransactions(transactions) {
-  fs.writeFileSync(dataFile, JSON.stringify(transactions, null, 2));
+  fs.writeFileSync(dataFile, JSON.stringify(Array.isArray(transactions) ? transactions : [], null, 2));
 }
 
 function formatCurrency(value) {
@@ -126,7 +134,8 @@ function calculateMonthlyTrend(transactions) {
     const date = new Date();
     date.setMonth(date.getMonth() - i);
     const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-    months[key] = { month: getMonthName(`${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-01`), income: 0, expense: 0 };
+    const monthDate = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-01`;
+    months[key] = { month: getMonthName(monthDate), income: 0, expense: 0 };
   }
 
   transactions.forEach((item) => {
