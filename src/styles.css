@@ -1,0 +1,714 @@
+import { useEffect, useMemo, useState } from 'react';
+import {
+  BarChart3,
+  CircleDollarSign,
+  CreditCard,
+  LayoutDashboard,
+  PiggyBank,
+  Plus,
+  ReceiptText,
+  Search,
+  Settings,
+  Sparkles,
+  Target,
+  TrendingUp,
+  Wallet
+} from 'lucide-react';
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  Legend,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis
+} from 'recharts';
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+
+function apiFetch(path, options = {}) {
+  const token = localStorage.getItem('wealth_token');
+  const headers = {
+    'Content-Type': 'application/json',
+    ...(options.headers || {})
+  };
+
+  if (token) headers.Authorization = `Bearer ${token}`;
+
+  return fetch(`${API_URL}${path}`, {
+    ...options,
+    headers
+  }).then(async (response) => {
+    const json = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(json.message || 'Request failed');
+    return json;
+  });
+}
+
+const defaultTransaction = {
+  type: 'expense',
+  category: 'Housing',
+  amount: '',
+  date: new Date().toISOString().slice(0, 10),
+  description: '',
+  paymentMethod: 'Card'
+};
+
+const navItems = [
+  { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { id: 'transactions', label: 'Transactions', icon: Wallet },
+  { id: 'budgets', label: 'Budgets', icon: Target },
+  { id: 'insights', label: 'AI Insights', icon: Sparkles },
+  { id: 'receipt', label: 'Receipt Scanner', icon: ReceiptText },
+  { id: 'settings', label: 'Settings', icon: Settings }
+];
+
+function App() {
+  const [token, setToken] = useState(localStorage.getItem('wealth_token') || '');
+  const [user, setUser] = useState(JSON.parse(localStorage.getItem('wealth_user') || 'null'));
+  const [activeView, setActiveView] = useState('dashboard');
+  const [dashboard, setDashboard] = useState(null);
+  const [budgets, setBudgets] = useState([]);
+  const [authMode, setAuthMode] = useState('login');
+  const [authData, setAuthData] = useState({ name: '', email: 'demo@wealth.app', password: 'password123' });
+  const [transactionForm, setTransactionForm] = useState(defaultTransaction);
+  const [budgetForm, setBudgetForm] = useState({ category: 'Food', limit: '' });
+  const [insights, setInsights] = useState([]);
+  const [receiptData, setReceiptData] = useState(null);
+  const [receiptFile, setReceiptFile] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  const logout = () => {
+    localStorage.removeItem('wealth_token');
+    localStorage.removeItem('wealth_user');
+    setToken('');
+    setUser(null);
+    setDashboard(null);
+  };
+
+  const loadDashboard = async () => {
+    if (!token) return;
+    try {
+      const data = await apiFetch('/dashboard');
+      setDashboard(data);
+      setBudgets(data.budgets || []);
+      const insightData = await apiFetch('/ai/insights', { method: 'POST', body: JSON.stringify({}) });
+      setInsights(insightData.insights || []);
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  useEffect(() => {
+    if (token) {
+      loadDashboard();
+    }
+  }, [token]);
+
+  useEffect(() => {
+    if (token && user) {
+      localStorage.setItem('wealth_token', token);
+      localStorage.setItem('wealth_user', JSON.stringify(user));
+    }
+  }, [token, user]);
+
+  const handleAuth = async (event) => {
+    event.preventDefault();
+    setLoading(true);
+
+    try {
+      const endpoint = authMode === 'login' ? '/auth/login' : '/auth/register';
+      const payload = authMode === 'login'
+        ? { email: authData.email, password: authData.password }
+        : { name: authData.name, email: authData.email, password: authData.password };
+
+      const result = await apiFetch(endpoint, {
+        method: 'POST',
+        body: JSON.stringify(payload)
+      });
+
+      setToken(result.token);
+      setUser(result.user);
+      setAuthData({ name: '', email: 'demo@wealth.app', password: 'password123' });
+    } catch (error) {
+      alert(error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleTransactionSubmit = async (event) => {
+    event.preventDefault();
+    try {
+      await apiFetch('/transactions', {
+        method: 'POST',
+        body: JSON.stringify(transactionForm)
+      });
+      setTransactionForm(defaultTransaction);
+      loadDashboard();
+    } catch (error) {
+      alert(error.message);
+    }
+  };
+
+  const handleBudgetSubmit = async (event) => {
+    event.preventDefault();
+    try {
+      await apiFetch('/budgets', {
+        method: 'POST',
+        body: JSON.stringify({ category: budgetForm.category, limit: Number(budgetForm.limit) })
+      });
+      setBudgetForm({ category: 'Food', limit: '' });
+      loadDashboard();
+    } catch (error) {
+      alert(error.message);
+    }
+  };
+
+  const handleDeleteTransaction = async (id) => {
+    try {
+      await apiFetch(`/transactions/${id}`, { method: 'DELETE' });
+      loadDashboard();
+    } catch (error) {
+      alert(error.message);
+    }
+  };
+
+  const handleReceiptSubmit = async (event) => {
+    event.preventDefault();
+    if (!receiptFile) return;
+
+    const formData = new FormData();
+    formData.append('receipt', receiptFile);
+
+    try {
+      const data = await fetch(`${API_URL}/receipt/analyze`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData
+      }).then(async (res) => {
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.message || 'OCR failed');
+        return json;
+      });
+
+      setReceiptData(data);
+      setTransactionForm((prev) => ({
+        ...prev,
+        amount: data.extracted.total || prev.amount,
+        description: data.extracted.merchant || prev.description,
+        date: data.extracted.date || prev.date
+      }));
+    } catch (error) {
+      alert(error.message);
+    }
+  };
+
+  const dashboardSummary = dashboard?.summary || {
+    totalIncome: 0,
+    totalExpenses: 0,
+    totalBalance: 0,
+    savingsRate: 0,
+    categoryBreakdown: [],
+    monthlyTrend: []
+  };
+
+  const pieData = useMemo(() => dashboardSummary.categoryBreakdown.map((item, index) => ({
+    name: item.category,
+    value: item.total,
+    color: ['#60a5fa', '#34d399', '#f87171', '#c084fc', '#fbbf24', '#38bdf8'][index % 6]
+  })), [dashboardSummary.categoryBreakdown]);
+
+  const renderContent = () => {
+    if (!token || !user) {
+      return (
+        <div className="auth-shell">
+          <div className="auth-card">
+            <div className="auth-header">
+              <div className="brand-mark">W</div>
+              <div>
+                <p className="eyebrow-auth">Portfolio Finance</p>
+                <h2>Wealth</h2>
+              </div>
+            </div>
+
+            <div className="switch-row">
+              <button className={authMode === 'login' ? 'tab selected' : 'tab'} onClick={() => setAuthMode('login')}>Login</button>
+              <button className={authMode === 'register' ? 'tab selected' : 'tab'} onClick={() => setAuthMode('register')}>Register</button>
+            </div>
+
+            <form onSubmit={handleAuth} className="auth-form">
+              {authMode === 'register' && (
+                <label>
+                  Full name
+                  <input value={authData.name} onChange={(e) => setAuthData({ ...authData, name: e.target.value })} placeholder="Jane Smith" />
+                </label>
+              )}
+
+              <label>
+                Email
+                <input value={authData.email} onChange={(e) => setAuthData({ ...authData, email: e.target.value })} placeholder="name@example.com" />
+              </label>
+
+              <label>
+                Password
+                <input type="password" value={authData.password} onChange={(e) => setAuthData({ ...authData, password: e.target.value })} placeholder="••••••••" />
+              </label>
+
+              <button type="submit" className="primary-btn auth-submit" disabled={loading}>
+                {loading ? 'Please wait...' : authMode === 'login' ? 'Log in' : 'Create account'}
+              </button>
+            </form>
+
+            <div className="demo-box">
+              <strong>Demo access</strong>
+              <span>Email: demo@wealth.app</span>
+              <span>Password: password123</span>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    const transactionList = dashboard?.transactions || [];
+
+    if (activeView === 'transactions') {
+      return (
+        <div className="page-content">
+          <section className="panel large-panel">
+            <div className="section-header">
+              <div>
+                <p className="eyebrow-small">Transactions</p>
+                <h3>Financial activity</h3>
+              </div>
+              <button className="primary-btn small-btn">Export</button>
+            </div>
+
+            <form className="transaction-form" onSubmit={handleTransactionSubmit}>
+              <div className="field-row">
+                <label>
+                  Type
+                  <select value={transactionForm.type} onChange={(e) => setTransactionForm({ ...transactionForm, type: e.target.value })}>
+                    <option value="income">Income</option>
+                    <option value="expense">Expense</option>
+                  </select>
+                </label>
+                <label>
+                  Category
+                  <select value={transactionForm.category} onChange={(e) => setTransactionForm({ ...transactionForm, category: e.target.value })}>
+                    <option value="Salary">Salary</option>
+                    <option value="Freelance">Freelance</option>
+                    <option value="Housing">Housing</option>
+                    <option value="Food">Food</option>
+                    <option value="Transport">Transport</option>
+                    <option value="Utilities">Utilities</option>
+                    <option value="Entertainment">Entertainment</option>
+                    <option value="Health">Health</option>
+                    <option value="Savings">Savings</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </label>
+              </div>
+
+              <div className="field-row">
+                <label>
+                  Amount
+                  <input type="number" value={transactionForm.amount} onChange={(e) => setTransactionForm({ ...transactionForm, amount: e.target.value })} />
+                </label>
+                <label>
+                  Date
+                  <input type="date" value={transactionForm.date} onChange={(e) => setTransactionForm({ ...transactionForm, date: e.target.value })} />
+                </label>
+              </div>
+
+              <div className="field-row">
+                <label>
+                  Payment method
+                  <select value={transactionForm.paymentMethod} onChange={(e) => setTransactionForm({ ...transactionForm, paymentMethod: e.target.value })}>
+                    <option value="Card">Card</option>
+                    <option value="Bank transfer">Bank transfer</option>
+                    <option value="Wallet">Wallet</option>
+                    <option value="Cash">Cash</option>
+                  </select>
+                </label>
+                <label>
+                  Description
+                  <input value={transactionForm.description} onChange={(e) => setTransactionForm({ ...transactionForm, description: e.target.value })} />
+                </label>
+              </div>
+
+              <button className="primary-btn" type="submit">Add transaction</button>
+            </form>
+          </section>
+
+          <section className="panel large-panel">
+            <div className="section-header">
+              <div>
+                <p className="eyebrow-small">Recent entries</p>
+                <h3>Transaction history</h3>
+              </div>
+              <div className="search-box"><Search size={16} /> <input placeholder="Search" /></div>
+            </div>
+
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Type</th>
+                    <th>Category</th>
+                    <th>Amount</th>
+                    <th>Date</th>
+                    <th>Description</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {transactionList.map((item) => (
+                    <tr key={item.id}>
+                      <td><span className={`badge ${item.type}`}>{item.type}</span></td>
+                      <td>{item.category}</td>
+                      <td className={item.type === 'income' ? 'amount-positive' : 'amount-negative'}>
+                        {item.type === 'income' ? '+' : '-'}${Number(item.amount).toLocaleString()}
+                      </td>
+                      <td>{new Date(item.date).toLocaleDateString()}</td>
+                      <td>{item.description}</td>
+                      <td><button className="table-button danger" onClick={() => handleDeleteTransaction(item.id)}>Delete</button></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+      );
+    }
+
+    if (activeView === 'budgets') {
+      return (
+        <div className="page-content grid-two">
+          <section className="panel large-panel">
+            <div className="section-header">
+              <div>
+                <p className="eyebrow-small">Budgets</p>
+                <h3>Monthly limits</h3>
+              </div>
+            </div>
+
+            <form onSubmit={handleBudgetSubmit} className="budget-form">
+              <label>
+                Category
+                <select value={budgetForm.category} onChange={(e) => setBudgetForm({ ...budgetForm, category: e.target.value })}>
+                  <option value="Housing">Housing</option>
+                  <option value="Food">Food</option>
+                  <option value="Transport">Transport</option>
+                  <option value="Entertainment">Entertainment</option>
+                  <option value="Utilities">Utilities</option>
+                  <option value="Health">Health</option>
+                </select>
+              </label>
+
+              <label>
+                Limit
+                <input type="number" value={budgetForm.limit} onChange={(e) => setBudgetForm({ ...budgetForm, limit: e.target.value })} placeholder="1500" />
+              </label>
+
+              <button className="primary-btn" type="submit">Save budget</button>
+            </form>
+          </section>
+
+          <section className="panel large-panel">
+            <div className="section-header">
+              <div>
+                <p className="eyebrow-small">Progress</p>
+                <h3>Budget tracking</h3>
+              </div>
+            </div>
+
+            <div className="budget-list">
+              {budgets.length ? budgets.map((budget) => {
+                const percent = Math.min(100, (budget.spent / budget.limit) * 100);
+                return (
+                  <div key={budget.id} className="budget-item">
+                    <div className="budget-row">
+                      <strong>{budget.category}</strong>
+                      <span>${Number(budget.spent).toLocaleString()} / ${Number(budget.limit).toLocaleString()}</span>
+                    </div>
+                    <div className="progress-bar">
+                      <div style={{ width: `${percent}%` }} className="progress-fill" />
+                    </div>
+                  </div>
+                );
+              }) : <p className="empty-state">No budgets set yet.</p>}
+            </div>
+          </section>
+        </div>
+      );
+    }
+
+    if (activeView === 'insights') {
+      return (
+        <div className="page-content">
+          <section className="panel large-panel">
+            <div className="section-header">
+              <div>
+                <p className="eyebrow-small">AI Insights</p>
+                <h3>Smart recommendations</h3>
+              </div>
+              <button className="primary-btn small-btn" onClick={loadDashboard}>Refresh</button>
+            </div>
+
+            <div className="insight-list">
+              {insights.map((item, index) => (
+                <div key={index} className="insight-card">
+                  <Sparkles size={18} />
+                  <p>{item}</p>
+                </div>
+              ))}
+            </div>
+          </section>
+        </div>
+      );
+    }
+
+    if (activeView === 'receipt') {
+      return (
+        <div className="page-content">
+          <section className="panel large-panel">
+            <div className="section-header">
+              <div>
+                <p className="eyebrow-small">Receipt scanner</p>
+                <h3>OCR intake</h3>
+              </div>
+            </div>
+
+            <form className="receipt-form" onSubmit={handleReceiptSubmit}>
+              <label className="file-picker">
+                <input type="file" accept="image/*" onChange={(e) => setReceiptFile(e.target.files[0])} />
+                <span>{receiptFile ? receiptFile.name : 'Choose receipt image'}</span>
+              </label>
+              <button className="primary-btn" type="submit">Analyze receipt</button>
+            </form>
+
+            {receiptData && (
+              <div className="receipt-result">
+                <div className="receipt-metric">
+                  <span>Merchant</span>
+                  <strong>{receiptData.extracted.merchant}</strong>
+                </div>
+                <div className="receipt-metric">
+                  <span>Total</span>
+                  <strong>${Number(receiptData.extracted.total || 0).toFixed(2)}</strong>
+                </div>
+                <div className="receipt-metric">
+                  <span>Date</span>
+                  <strong>{receiptData.extracted.date}</strong>
+                </div>
+                <pre>{receiptData.text}</pre>
+              </div>
+            )}
+          </section>
+        </div>
+      );
+    }
+
+    if (activeView === 'settings') {
+      return (
+        <div className="page-content">
+          <section className="panel large-panel settings-card">
+            <div className="section-header">
+              <div>
+                <p className="eyebrow-small">Account</p>
+                <h3>Profile and settings</h3>
+              </div>
+            </div>
+            <div className="profile-box">
+              <div className="avatar">{user.name?.charAt(0).toUpperCase()}</div>
+              <div>
+                <strong>{user.name}</strong>
+                <p>{user.email}</p>
+              </div>
+            </div>
+            <button className="primary-btn danger-btn" onClick={logout}>Log out</button>
+          </section>
+        </div>
+      );
+    }
+
+    return (
+      <div className="page-content">
+        <div className="stats-grid">
+          <div className="stat-card primary">
+            <div className="stat-header"><CircleDollarSign size={18} /> <span>Income</span></div>
+            <h3>${Number(dashboardSummary.totalIncome || 0).toLocaleString()}</h3>
+            <small>Monthly earnings</small>
+          </div>
+
+          <div className="stat-card danger">
+            <div className="stat-header"><CreditCard size={18} /> <span>Expenses</span></div>
+            <h3>${Number(dashboardSummary.totalExpenses || 0).toLocaleString()}</h3>
+            <small>Current spending</small>
+          </div>
+
+          <div className="stat-card success">
+            <div className="stat-header"><PiggyBank size={18} /> <span>Balance</span></div>
+            <h3>${Number(dashboardSummary.totalBalance || 0).toLocaleString()}</h3>
+            <small>Available cash</small>
+          </div>
+
+          <div className="stat-card purple">
+            <div className="stat-header"><TrendingUp size={18} /> <span>Savings rate</span></div>
+            <h3>{Number(dashboardSummary.savingsRate || 0).toFixed(1)}%</h3>
+            <small>Performance index</small>
+          </div>
+        </div>
+
+        <div className="charts-grid">
+          <section className="panel large-panel">
+            <div className="section-header">
+              <div>
+                <p className="eyebrow-small">Overview</p>
+                <h3>Cash flow trend</h3>
+              </div>
+              <span className="chip success">6 months</span>
+            </div>
+
+            <div className="chart-box">
+              <ResponsiveContainer width="100%" height={280}>
+                <BarChart data={dashboardSummary.monthlyTrend}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.15)" />
+                  <XAxis dataKey="month" stroke="#cbd5e1" />
+                  <YAxis stroke="#cbd5e1" />
+                  <Tooltip formatter={(value) => `$${Number(value).toLocaleString()}`} />
+                  <Legend />
+                  <Bar dataKey="income" fill="#34d399" radius={[8, 8, 0, 0]} />
+                  <Bar dataKey="expense" fill="#f87171" radius={[8, 8, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </section>
+
+          <section className="panel large-panel">
+            <div className="section-header">
+              <div>
+                <p className="eyebrow-small">Spending</p>
+                <h3>Category mix</h3>
+              </div>
+              <span className="chip neutral">Live</span>
+            </div>
+
+            <div className="chart-box">
+              <ResponsiveContainer width="100%" height={280}>
+                <PieChart>
+                  <Pie data={pieData} dataKey="value" nameKey="name" innerRadius={58} outerRadius={92} paddingAngle={4}>
+                    {pieData.map((entry) => <Cell key={entry.name} fill={entry.color} />)}
+                  </Pie>
+                  <Tooltip formatter={(value) => `$${Number(value).toLocaleString()}`} />
+                  <Legend />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          </section>
+        </div>
+
+        <div className="bottom-grid">
+          <section className="panel large-panel">
+            <div className="section-header">
+              <div>
+                <p className="eyebrow-small">AI</p>
+                <h3>Smart insights</h3>
+              </div>
+              <span className="chip primary">Active</span>
+            </div>
+
+            <div className="insight-list">
+              {insights.map((item, index) => (
+                <div key={index} className="insight-card">
+                  <Sparkles size={18} />
+                  <p>{item}</p>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <section className="panel large-panel">
+            <div className="section-header">
+              <div>
+                <p className="eyebrow-small">Latest activity</p>
+                <h3>Recent transactions</h3>
+              </div>
+              <button className="primary-btn small-btn" onClick={() => setActiveView('transactions')}><Plus size={16} /> Add</button>
+            </div>
+
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Category</th>
+                    <th>Type</th>
+                    <th>Amount</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(dashboard?.transactions || []).slice(0, 5).map((item) => (
+                    <tr key={item.id}>
+                      <td>{item.category}</td>
+                      <td><span className={`badge ${item.type}`}>{item.type}</span></td>
+                      <td className={item.type === 'income' ? 'amount-positive' : 'amount-negative'}>
+                        {item.type === 'income' ? '+' : '-'}${Number(item.amount).toLocaleString()}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div className="app-shell">
+      <aside className="sidebar">
+        <div className="logo-area">
+          <div className="brand-mark">W</div>
+          <div>
+            <span>Wealth</span>
+            <small>AI Finance</small>
+          </div>
+        </div>
+
+        <nav className="nav-menu">
+          {navItems.map(({ id, label, icon: Icon }) => (
+            <button key={id} className={activeView === id ? 'nav-item active' : 'nav-item'} onClick={() => setActiveView(id)}>
+              <Icon size={18} />
+              {label}
+            </button>
+          ))}
+        </nav>
+      </aside>
+
+      <main className="content-shell">
+        <header className="topbar">
+          <div>
+            <p className="eyebrow-small">Overview</p>
+            <h1>Financial dashboard</h1>
+          </div>
+
+          <div className="topbar-actions">
+            <button className="ghost-button">This month</button>
+            <div className="profile-badge">{user?.name?.charAt(0)?.toUpperCase() || 'U'}</div>
+          </div>
+        </header>
+
+        {renderContent()}
+      </main>
+    </div>
+  );
+}
+
+export default App;

@@ -1,23 +1,32 @@
 {
-  "name": "ai-finance-tracker",
+  "name": "wealth-ai-finance-tracker",
+  "private": true,
   "version": "1.0.0",
-  "description": "AI-powered finance tracker dashboard with responsive charts and insights.",
-  "main": "server.js",
+  "type": "module",
   "scripts": {
-    "start": "node server.js",
-    "dev": "node server.js"
+    "dev": "concurrently \"npm run server\" \"npm run client\"",
+    "server": "NODE_ENV=development node server.js",
+    "client": "vite --host 0.0.0.0",
+    "build": "vite build",
+    "start": "NODE_ENV=production node server.js"
   },
-  "keywords": [
-    "finance",
-    "dashboard",
-    "chartjs",
-    "express",
-    "portfolio"
-  ],
-  "author": "Chetan472",
-  "license": "MIT",
   "dependencies": {
-    "cors": "^2.9.0",
-    "express": "^4.19.2"
+    "@google/generative-ai": "^0.20.0",
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.1",
+    "jsonwebtoken": "^9.0.2",
+    "lucide-react": "^0.468.0",
+    "multer": "^1.4.5-lts.1",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "recharts": "^2.13.0",
+    "tesseract.js": "^5.1.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.3",
+    "concurrently": "^9.0.1",
+    "vite": "^5.4.10"
   }
 }
