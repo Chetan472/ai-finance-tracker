@@ -1,0 +1,23 @@
+{
+  "name": "ai-finance-tracker",
+  "version": "1.0.0",
+  "description": "AI-powered finance tracker dashboard with responsive charts and insights.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "keywords": [
+    "finance",
+    "dashboard",
+    "chartjs",
+    "express",
+    "portfolio"
+  ],
+  "author": "Chetan472",
+  "license": "MIT",
+  "dependencies": {
+    "cors": "^2.9.0",
+    "express": "^4.19.2"
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "title": "AI Powered Finance Tracker",
+  "description": "Portfolio-ready finance management app with income tracking, expense analytics, and AI-generated budget insights.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  }
+}
